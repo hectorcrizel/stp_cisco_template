@@ -1,0 +1,140 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 88ca23b4970445d4a138bb10ab3524b8
+      name: 'Templates/Network devices'
+  templates:
+    - uuid: 4a8b7c2df31a48c5836a9925e0c51e06
+      template: 'Template Net Cisco STP SNMP'
+      name: 'Template Net Cisco STP SNMP'
+      description: |
+        Template para monitoramento de Spanning Tree Protocol (BRIDGE-MIB) com nomes de interfaces legíveis (ifName).
+        Compatível com Zabbix 7.0 LTS e UUIDv4.
+      groups:
+        - name: 'Templates/Network devices'
+      items:
+        - uuid: 1f28b4c3e6d740fca8e1b5c6a39210db
+          name: 'STP: Designated Root Bridge'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.17.2.5.0
+          key: stp.root_bridge
+          delay: 5m
+          history: 7d
+          value_type: CHAR
+          trends: '0'
+          tags:
+            - tag: component
+              value: stp
+          triggers:
+            - uuid: 5d61e2f3c0a44b7f9a8b1c5d3e0f4a2c
+              expression: 'change(/Template Net Cisco STP SNMP/stp.root_bridge)=1'
+              name: 'STP: Root Bridge foi alterado!'
+              priority: HIGH
+        - uuid: a7f93c5d60e14a1dbb8f21950d8713a6
+          name: 'STP: Time Since Last Topology Change'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.17.2.4.0
+          key: stp.time_since_change
+          history: 7d
+          value_type: FLOAT
+          units: s
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.01'
+          tags:
+            - tag: component
+              value: stp
+        - uuid: 6e5d8b74619a4e3fa338cd3d63b0a2cf
+          name: 'STP: Topology Change Count'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.17.2.3.0
+          key: stp.topology_changes
+          history: 7d
+          value_type: FLOAT
+          tags:
+            - tag: component
+              value: stp
+          triggers:
+            - uuid: b3c0e18d6a7f451e93c12140ab8a9721
+              expression: 'change(/Template Net Cisco STP SNMP/stp.topology_changes)>0'
+              name: 'STP: Mudança de topologia detectada'
+              priority: WARNING
+              manual_close: 'YES'
+      discovery_rules:
+        - uuid: f1a2c3d4e5b64f7a8b9c0d1e2f3a4b5c
+          name: 'STP Port Discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#IFNAME},1.3.6.1.2.1.31.1.1.1.1,{#STPSTATE},1.3.6.1.2.1.17.2.15.1.3]'
+          key: stp.port.discovery
+          delay: 1h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#IFNAME}'
+                value: '{$STP.PORT.MATCH}'
+                formulaid: A
+              - macro: '{#IFNAME}'
+                value: '{$STP.PORT.IGNORE}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+          item_prototypes:
+            - uuid: f5a6b7c8d9e04f1a8b2c3d4e5f6a7b8c
+              name: 'STP Port {#IFNAME}: Path Cost'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.17.2.15.1.5.{#SNMPINDEX}'
+              key: 'stp.port.cost[{#SNMPINDEX}]'
+              delay: 1h
+              history: 7d
+              value_type: FLOAT
+              tags:
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: e2f3a4b5c6d74e8f9a0b1c2d3e4f5a6b
+              name: 'STP Port {#IFNAME}: State'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.17.2.15.1.3.{#SNMPINDEX}'
+              key: 'stp.port.state[{#SNMPINDEX}]'
+              delay: 3m
+              history: 7d
+              value_type: FLOAT
+              valuemap:
+                name: 'STP Port State'
+              tags:
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: c6d7e8f9a0b14c2d8e4f5a6b7c8d9e0f
+                  expression: 'last(/Template Net Cisco STP SNMP/stp.port.state[{#SNMPINDEX}])=2'
+                  name: 'STP Port {#IFNAME}: Entrou em estado de Blocking'
+                  priority: INFO
+                - uuid: b1c2d3e4f5a64b7c9d8e9f0a1b2c3d4e
+                  expression: 'last(/Template Net Cisco STP SNMP/stp.port.state[{#SNMPINDEX}])=6'
+                  name: 'STP Port {#IFNAME}: Estado de Erro (Broken)'
+                  priority: AVERAGE
+      macros:
+        - macro: '{$SNMP_COMMUNITY}'
+          value: public
+          description: 'Community padrão para gerência'
+        - macro: '{$STP.PORT.IGNORE}'
+          value: ^$
+          description: 'Regex para ignorar portas por nome (ex: Null0|Vlan.*)'
+        - macro: '{$STP.PORT.MATCH}'
+          value: '.*'
+          description: 'Regex para incluir portas por nome'
+      valuemaps:
+        - uuid: 39f04128ec054f0a8d6be1a1fa9319e3
+          name: 'STP Port State'
+          mappings:
+            - value: '1'
+              newvalue: Disabled
+            - value: '2'
+              newvalue: Blocking
+            - value: '3'
+              newvalue: Listening
+            - value: '4'
+              newvalue: Learning
+            - value: '5'
+              newvalue: Forwarding
+            - value: '6'
+              newvalue: Broken
