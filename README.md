@@ -17,3 +17,8 @@ A specialized Zabbix template designed for deep monitoring of the Spanning Tree 
 *   Zabbix (YAML Template)
 *   SNMP
 *   Cisco MIBs
+
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
